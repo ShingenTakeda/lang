@@ -33,7 +33,7 @@ fn main() {
                     println!("{}", e.pp(&lexer, &lang_y::token_epp));
                 }
                 match res {
-                    Some(Ok(r)) => println!("Result: {:?}", r),
+                    Some(Ok(r)) => println!("{:?}", r),
                     _ => eprintln!("Unable to evaluate expression."),
                 }
             }
