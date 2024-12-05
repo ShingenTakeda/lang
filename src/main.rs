@@ -1,7 +1,10 @@
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use std::{env, io::{self, BufRead, Write}};
+use std::{
+    env,
+    io::{self, BufRead, Write},
+};
 
 use lrlex::lrlex_mod;
 use lrpar::lrpar_mod;
@@ -49,7 +52,7 @@ fn find_file(filename: &str) -> Option<PathBuf> {
 
     // Tenta no diretório do projeto (um nível acima)
     let mut path = env::current_dir().unwrap();
-    path.pop();  // Sobe um nível
+    path.pop(); // Sobe um nível
     path.push(filename);
     if path.exists() {
         println!("Arquivo encontrado em: {}", path.display());
@@ -73,7 +76,7 @@ fn main() {
             loop {
                 print!(">>> ");
                 io::stdout().flush().ok();
-                
+
                 let mut line = String::new();
                 if let Ok(n) = stdin.lock().read_line(&mut line) {
                     if n == 0 || line.trim() == "exit" {
@@ -84,7 +87,7 @@ fn main() {
                     }
                 }
             }
-        },
+        }
         2 => {
             if let Some(file_path) = find_file(&args[1]) {
                 let mut file = match File::open(&file_path) {
@@ -94,13 +97,13 @@ fn main() {
                         std::process::exit(1);
                     }
                 };
-    
+
                 let mut input = String::new();
                 if let Err(e) = file.read_to_string(&mut input) {
                     eprintln!("Erro ao ler o arquivo: {}", e);
                     std::process::exit(1);
                 }
-    
+
                 process_input(&input, &lexerdef);
             } else {
                 eprintln!("Arquivo não encontrado");
