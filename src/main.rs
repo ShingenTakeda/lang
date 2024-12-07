@@ -12,6 +12,8 @@ lrlex_mod!("lang.l");
 // with a suffix of `_y`).
 lrpar_mod!("lang.y");
 
+mod ast;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() > 1 {
