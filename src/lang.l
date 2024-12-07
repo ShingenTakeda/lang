@@ -6,5 +6,9 @@
 \/ "DIV"
 \( "LPAR"
 \) "RPAR"
+\< "LT"
+\> "GT"
+\if "IF"
+\else "ELSE"
 //[^\n]*?$ ;
 [\t\n ]+ ;

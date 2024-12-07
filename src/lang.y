@@ -8,10 +8,32 @@ Nodes -> Result<Vec<Node>, ()>:
   ;
 
 Node -> Result<Node, ()>:
-      Node 'ADD' Term {
+      'IF' 'LPAR' Node 'RPAR' 'LPAR' Node 'RPAR' 'ELSE' 'LPAR' Node 'RPAR' {
+        Ok(Node::If {
+            cond: Box::new($3?),
+            then_branch: Box::new($6?),
+            else_branch: Box::new($10.map_err(|_| ())?)
+
+
+
+        })
+      }
+    | Node 'ADD' Term {
         Ok(Node::Add{ 
           lhs: Box::new($1?), 
           rhs: Box::new($3?) 
+        })
+      }
+    | Node 'LT' Term {
+        Ok(Node::Lt {
+          lhs: Box::new($1?), 
+          rhs: Box::new($3?)
+        })
+      }
+    | Node 'GT' Term {
+        Ok(Node::Gt {
+          lhs: Box::new($1?), 
+          rhs: Box::new($3?)
         })
       }
     | Term { $1 }
