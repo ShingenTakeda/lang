@@ -1,2 +1,5 @@
 //C++ style comments work!
-2 * 5
+let a = 1;
+let b = 2;
+a = 3;
+writeln(a+b); // should print 5

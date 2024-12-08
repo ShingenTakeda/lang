@@ -1,53 +1,74 @@
-%start Nodes
-%avoid_insert "INT"
+%start StatementList
 %%
 
-Nodes -> Result<Vec<Node>, ()>:
-    Nodes Node { flattenr($1, $2) }
-  | { Ok(vec![]) }
-  ;
-
-Node -> Result<Node, ()>:
-      Node 'ADD' Term {
-        Ok(Node::Add{ 
-          lhs: Box::new($1?), 
-          rhs: Box::new($3?) 
-        })
-      }
-    | Term { $1 }
+StatementList -> Result<Vec<Node>, ()>:
+    StatementList Statement { append($1.map_err(|_| ())?, $2.map_err(|_| ())?)  }
+    | { Ok(vec![]) }
     ;
 
-Term -> Result<Node, ()>:
-      Term 'MUL' Factor {
-        Ok(Node::Mul{  
-          lhs: Box::new($1?), 
-          rhs: Box::new($3?) 
-        })
-      }
-    | Factor { $1 }
+Statement -> Result<Node, ()>:
+   ';' { Ok(Node::Empty{}) }
+    | Expression ';' { $1 }
+    | Builtins { $1 }
     ;
-
-Factor -> Result<Node, ()>:
-      'LPAR' Node 'RPAR' { $2 }
-    | 'INT' { 
-        match $1.map_err(|err| format!("Parsing Error: {}", err)) {
-            Ok(s) => {
-              let s = $lexer.span_str(s.span());
-              match s.parse::<u64>() {
-                  Ok(n_val) => Ok(Node::Number{ value: n_val }),
-                  Err(_) => Err(())
-              }
-            }
-            Err(_) => Err(())
+    
+Expression -> Result<Node, ()>:
+    AdditiveExpression { $1 }
+    | PrimaryExpression 'ASSIGN' Expression {
+        match $1.map_err(|_| ())? {
+            Node::Id { value } => {
+                Ok(Node::Assign { id: value, rhs: Box::new($3?) })
+            },
+            _ => Err(())
         }
-      }
+    }
+    | 'LET' PrimaryExpression 'ASSIGN' Expression {
+        match $2.map_err(|_| ())? {
+            Node::Id { value } => {
+                Ok(Node::Declare { id: value, rhs: Some(Box::new($4?)) })
+            },
+            _ => Err(())
+        }
+    } 
     ;
+
+AdditiveExpression -> Result<Node, ()>:
+    MultiplicativeExpression { $1 }
+    | AdditiveExpression 'ADD' MultiplicativeExpression { 
+        Ok(Node::Add{ lhs: Box::new($1?), rhs: Box::new($3?) })
+    }
+    ;
+
+MultiplicativeExpression -> Result<Node, ()>: 
+    PrimaryExpression { $1 }
+    | MultiplicativeExpression 'MUL' PrimaryExpression { 
+      Ok(Node::Mul{ lhs: Box::new($1?), rhs: Box::new($3?) })
+    }
+    ;
+
+PrimaryExpression -> Result<Node, ()>:
+    'ID' { Ok(Node::Id { value: $lexer.span_str(($1.map_err(|_| ())?).span()).to_string() }) }
+    |  'LPAR' Expression 'RPAR' { $2 }
+    | 'INT' { parse_int($lexer.span_str(($1.map_err(|_| ())?).span())) }
+    ;
+
+Builtins -> Result<Node, ()>:
+    'WRITELN' 'LPAR' Expression 'RPAR' { Ok(Node::Writeln{ rhs: Box::new($3?) }) };
+
 %%
 use crate::ast::Node;
 
-/// Flatten `rhs` into `lhs`.
-fn flattenr<T>(lhs: Result<Vec<T>, ()>, rhs: Result<T, ()>) -> Result<Vec<T>, ()> {
-    let mut flt = lhs?;
-    flt.push(rhs?);
-    Ok(flt)
+fn append(mut lhs: Vec<Node>, rhs: Node ) -> Result<Vec<Node>, ()>{
+    lhs.push(rhs);
+    Ok(lhs)
+}
+
+fn parse_int(s: &str) -> Result<Node, ()> {
+    match s.parse::<u64>() {
+        Ok(n_val) => Ok(Node::Number{ value: n_val }),
+        Err(_) => {
+            eprintln!("{} cannot be represented as a u64", s);
+            Err(())
+        }
+    }
 }
