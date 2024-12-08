@@ -8,7 +8,8 @@
 \) "RPAR"
 \< "LT"
 \> "GT"
-\if "IF"
-\else "ELSE"
+if "IF"
+else "ELSE"
 //[^\n]*?$ ;
 [\t\n ]+ ;
+
