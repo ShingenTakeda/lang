@@ -1,95 +1,154 @@
-use crate::{ast::Node, scope::Scope};
+use crate::{
+    ast::AstNode,
+    instruction::{BinaryOp, Instruction, StackValue},
+};
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum BinaryOp {
-    Add,
-    Mul,
-    Assign { name: String },
-    Declare { name: String },
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum Op {
-    Add,                 // Addition operation
-    Mull,                // Multiplication operation
-    Push { value: u64 }, // Load numeric value onto stack
-    Assign { name: String },
-    Declare { name: String },
-    Writeln,
-    Load { id: String },
-}
-
-pub fn eval(ast: Vec<Node>, scope: &mut Scope) -> Result<Option<u64>, String> {
-    let ops = &mut vec![];
-    for a in ast {
-        ast_to_bytecode(a, ops);
+fn function_call(id: String, args: Vec<AstNode>, prog: &mut Vec<Instruction>) {
+    let mut args_bytecode = vec![];
+    for a in args {
+        let bytecode = &mut vec![];
+        to_bytecode(a, bytecode);
+        args_bytecode.push(bytecode.to_vec());
     }
-    let mut stack: Vec<u64> = vec![];
+    prog.push(Instruction::FunctionCall {
+        id,
+        args: args_bytecode,
+    })
+}
 
-    for instruction in ops {
-        match instruction {
-            Op::Push { value } => stack.push(*value),
-            Op::Add => {
-                let rhs = stack.pop().unwrap();
-                let lhs = stack.pop().unwrap();
-                stack.push(lhs + rhs);
-            }
-            Op::Mull {} => {
-                let rhs = stack.pop().unwrap();
-                let lhs = stack.pop().unwrap();
-                stack.push(lhs * rhs);
-            }
-            Op::Assign { name } => {
-                let val = stack.pop().unwrap();
-                scope.set_var(name.clone(), val);
-            }
-            Op::Declare { name } => {
-                let val = stack.pop().unwrap();
-                scope.dec_var(name.clone(), val);
-            }
-            Op::Writeln => {
-                println!("{}", stack.pop().unwrap());
-            }
-            Op::Load { id } => {
-                if let Some(value) = scope.get_var(id.clone()) {
-                    stack.push(value.clone());
-                } else {
-                    return Err(format!("Variable '{}' not found", id.clone()));
-                }
-            }
+fn function_ast_params_to_vec(params: Vec<AstNode>) -> Vec<String> {
+    let mut bytecode = vec![];
+    for p in params {
+        if let AstNode::ID { value } = p {
+            bytecode.push(value)
         }
     }
-    Ok(stack.pop())
+    return bytecode;
 }
 
-pub fn ast_to_bytecode(node: Node, ops: &mut Vec<Op>) {
-    match node {
-        Node::Add { lhs, rhs } => {
-            ast_to_bytecode(*lhs, ops);
-            ast_to_bytecode(*rhs, ops);
-            ops.push(Op::Add {})
+pub fn block_to_bytecode(block: Vec<AstNode>) -> Vec<Instruction> {
+    let bytecodes = &mut vec![];
+    for n in block {
+        let bytecode = &mut vec![];
+        to_bytecode(n, bytecode);
+        bytecodes.append(bytecode);
+    }
+    return bytecodes.to_vec();
+}
+
+pub fn to_bytecode(ast_node: AstNode, prog: &mut Vec<Instruction>) {
+    match ast_node {
+        AstNode::Return { block: body } => {
+            let bytecode = &mut vec![];
+            to_bytecode(*body, bytecode);
+            prog.push(Instruction::Return {
+                block: bytecode.to_vec(),
+            });
         }
-        Node::Mul { lhs, rhs } => {
-            ast_to_bytecode(*lhs, ops);
-            ast_to_bytecode(*rhs, ops);
-            ops.push(Op::Mull {})
+        AstNode::FunctionCall { id, args } => function_call(id, args, prog),
+        AstNode::Function { id, params, block } => prog.push(Instruction::FunctionDeclaration {
+            name: id,
+            block: block_to_bytecode(block),
+            params: function_ast_params_to_vec(params),
+        }),
+        AstNode::Add { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp { op: BinaryOp::Add })
         }
-        Node::Number { value } => ops.push(Op::Push { value }),
-        Node::Declare { id, rhs } => {
+        AstNode::Mul { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp { op: BinaryOp::Mul })
+        }
+        AstNode::Number { value } => prog.push(Instruction::Push {
+            value: StackValue::Integer(value),
+        }),
+        AstNode::PrintLn { rhs } => {
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::PrintLn {})
+        }
+        AstNode::Declare { id, rhs } => {
             if let Some(val) = rhs {
-                ast_to_bytecode(*val, ops);
+                to_bytecode(*val, prog);
             }
-            ops.push(Op::Declare { name: id.clone() });
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::Declare { name: id.clone() },
+            });
         }
-        Node::Assign { id, rhs } => {
-            ast_to_bytecode(*rhs, ops);
-            ops.push(Op::Declare { name: id.clone() });
+        AstNode::Assign { id, rhs } => {
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::Assign { name: id.clone() },
+            })
         }
-        Node::Id { value } => ops.push(Op::Load { id: value }),
-        Node::Writeln { rhs } => {
-            ast_to_bytecode(*rhs, ops);
-            ops.push(Op::Writeln {})
+        AstNode::ID { value } => prog.push(Instruction::Load { id: value }),
+        AstNode::Boolean { value } => prog.push(Instruction::Push {
+            value: StackValue::Boolean(value),
+        }),
+        AstNode::GreaterThan { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::GreaterThan {},
+            })
         }
-        Node::Empty {} => {}
+        AstNode::LessThan { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::LessThan {},
+            })
+        }
+        AstNode::Empty => { /* DO NOTHING */ }
+        AstNode::Conditional {
+            condition: ast_condition,
+            block: ast_block,
+            alternative: ast_alternative,
+        } => {
+            let condition = &mut vec![];
+            to_bytecode(*ast_condition, condition);
+
+            let block = block_to_bytecode(ast_block);
+
+            let mut alternative = None;
+            if let Some(alt) = ast_alternative {
+                alternative = Some(block_to_bytecode(alt));
+            }
+
+            prog.push(Instruction::Conditional {
+                condition: condition.to_vec(),
+                block,
+                alternative,
+            })
+        }
+        AstNode::Equal { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::Equal,
+            })
+        }
+        AstNode::NotEqual { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::NotEqual,
+            })
+        }
+        AstNode::LogicalAnd { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::LogicalAnd,
+            })
+        }
+        AstNode::LogicalOr { lhs, rhs } => {
+            to_bytecode(*lhs, prog);
+            to_bytecode(*rhs, prog);
+            prog.push(Instruction::BinaryOp {
+                op: BinaryOp::LogicalOr,
+            })
+        }
     }
 }

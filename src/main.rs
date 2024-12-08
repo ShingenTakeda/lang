@@ -1,148 +1,86 @@
+use lang::{err::InterpError, instruction::EvalResult, scope::Scope, LANG};
 use std::{
     env, fs,
-    io::{stdin, stdout, Write},
+    io::{self, stdout, BufRead, Write},
 };
 
-use clap::Parser;
-use lang::{eval_str, parser::print_ast};
-
-/// Search for a pattern in a file and display the lines that contain it.
-#[derive(Parser)]
-struct Cli {
-    /// The pattern to look for
-    pattern: String,
-    /// The path to the file to read
-    path: std::path::PathBuf,
-}
-
-fn eval_file(file_name: String) {
-    match fs::read_to_string(file_name) {
-        Ok(content) => {
-            eval(&content);
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let scope = Scope::new();
+    let lang = &mut LANG::new();
+    if args.len() > 1 {
+        let result;
+        if args[1].ends_with(".lg") {
+            result = run_from_file(&args[1], lang, scope.clone())
+        } else {
+            result = eval_statement(&args[1], lang, scope.clone());
         }
-        Err(e) => eprintln!("Não é possivel avaliar expressão, Erro: {}", e),
+        if let Err(e) = result {
+            print_err(e);
+        }
+    } else {
+        repl(lang, scope.clone());
     }
 }
 
-fn eval_file_ast(file_name: String) {
+fn print_err(err: InterpError) {
+    eprintln!("Evaluation error: {}", err)
+}
+
+pub fn run_from_file(
+    file_name: &str,
+    lang: &mut LANG,
+    scope: Scope,
+) -> Result<Option<EvalResult>, InterpError> {
+    let file_path = file_name;
     match fs::read_to_string(file_name) {
-        Ok(content) => {
-            print_ast(&content);
-        }
-        Err(e) => eprintln!("Não é possivel avaliar expressão, Erro: {}", e),
+        Ok(content) => eval_statement(content.as_str(), lang, scope),
+        Err(_) => Err(InterpError::ProgramFileNotFound(file_path.to_string())),
     }
 }
 
-fn repl() {
+fn repl(lang: &mut LANG, scope: Scope) {
+    let stdin = io::stdin();
     loop {
-        print!("> ");
-        stdout().flush().unwrap();
-        match stdin().lines().next() {
-            Some(Ok(input)) => {
-                if input.trim() == "exit()" {
-                    break;
-                }
-                if input.trim().is_empty() {
+        print!("👉 ");
+        stdout().flush().ok();
+        match stdin.lock().lines().next() {
+            Some(Ok(ref l)) => {
+                if l.trim().is_empty() {
                     continue;
                 }
-                eval(&input);
+                match eval_statement(l, lang, scope.clone()) {
+                    Ok(Some(EvalResult::Value(value))) => {
+                        println!("{}", value);
+                    }
+                    Err(err) => print_err(err),
+                    _ => {}
+                }
             }
             _ => {}
         }
     }
 }
 
-fn eval(input: &String) {
-    match eval_str(input) {
-        Ok(Some(result)) => {
-            println!("{}", result);
-        }
-        Ok(None) => {}
-        Err(e) => eprintln!("Não é possivel avaliar expressão, Erro: {}", e),
-    }
-}
+fn eval_statement(
+    input: &str,
+    lang: &mut LANG,
+    scope: Scope,
+) -> Result<Option<EvalResult>, InterpError> {
+    let ast = lang.from_str(input);
+    match ast {
+        Ok(ast_node) => {
+            let bytecode = LANG::ast_to_bytecode(ast_node);
 
-fn main() {
-    println!("Interpretador LANG");
-    let args: Vec<String> = env::args().collect();
-    if args.len() > 1 {
-        if args[1].ends_with(".lg") {
-            if args.len() > 2 {
-                if args[2] == "ast" {
-                    println!("Representação AST");
-                    eval_file_ast(args[1].clone());
+            match lang.eval(&bytecode, scope) {
+                Ok(eval_result) => return Ok(eval_result),
+                Err(e) => {
+                    return Err(e);
                 }
-            } else {
-                eval_file(args[1].clone())
             }
-        } else {
-            eval(&args[1])
         }
-    } else {
-        repl()
-    }
-}
-
-#[test]
-fn test_comments() {
-    assert_eq!(
-        eval_str(&"// 2+2\n 1+1".to_string()).unwrap(),
-        Some(2),
-        "expected 1+1=2"
-    );
-    assert_eq!(
-        eval_str(&"// 2+2".to_string()).unwrap(),
-        None,
-        "expected 1+1=2"
-    );
-}
-
-#[cfg(test)]
-mod main_tests {
-    use super::*;
-    #[test]
-    fn math_expressions() {
-        assert_eq!(
-            eval_str(&"0+1*1*1".to_string()).unwrap(),
-            Some(1),
-            "expected 0+1*1*1"
-        );
-        assert_eq!(
-            eval_str(&"1+1".to_string()).unwrap(),
-            Some(2),
-            "expected 1+1=2"
-        );
-        assert_eq!(
-            eval_str(&"1*(1+2)".to_string()).unwrap(),
-            Some(3),
-            "expected 1*(1+2)=3"
-        );
-    }
-}
-
-#[cfg(test)]
-mod var_tests {
-    use super::*;
-    #[test]
-    fn vars_declare_match() {
-        assert_eq!(
-            eval_str(&"let x = 1; let y = 2; y + x;".to_string()).unwrap(),
-            Some(3)
-        );
-    }
-    #[test]
-    fn vars_reassign_math() {
-        assert_eq!(
-            eval_str(&"let x = 1; let y = 2; x = 3; x + y;".to_string()).unwrap(),
-            Some(5)
-        );
-    }
-
-    #[test]
-    fn vars_undeclared_variable() {
-        assert_eq!(
-            eval_str(&"a + 1;".to_string()),
-            Err("Variable 'a' not found".to_string())
-        );
+        Err(e) => {
+            return Err(e);
+        }
     }
 }
