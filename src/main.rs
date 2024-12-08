@@ -83,7 +83,7 @@ fn main() {
     println!("Interpretador LANG");
     let args: Vec<String> = env::args().collect();
     if args.len() > 1 {
-        if args[1].ends_with(".lg".clone()) {
+        if args[1].ends_with(".lg") {
             eval_file(args[1].clone())
         } else {
             eval(&args[1])
