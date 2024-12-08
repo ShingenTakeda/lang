@@ -67,10 +67,14 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() > 1 {
         if args[1].ends_with(".lg") {
-            if args[2] == "a" {
-                eval_file_ast(args[1].clone());
+            if args.len() > 2 {
+                if args[2] == "ast" {
+                    println!("Representação AST");
+                    eval_file_ast(args[1].clone());
+                }
+            } else {
+                eval_file(args[1].clone())
             }
-            eval_file(args[1].clone())
         } else {
             eval(&args[1])
         }
