@@ -3,26 +3,31 @@ use std::{
     io::{stdin, stdout, Write},
 };
 
-use lang::eval_str;
+use clap::Parser;
+use lang::{eval_str, parser::print_ast};
 
-fn main() {
-    println!("Interpretador LANG");
-    let args: Vec<String> = env::args().collect();
-    if args.len() > 1 {
-        if args[1].ends_with(".lg") {
-            eval_file(args[1].clone())
-        } else {
-            eval(&args[1])
-        }
-    } else {
-        repl()
-    }
+/// Search for a pattern in a file and display the lines that contain it.
+#[derive(Parser)]
+struct Cli {
+    /// The pattern to look for
+    pattern: String,
+    /// The path to the file to read
+    path: std::path::PathBuf,
 }
 
 fn eval_file(file_name: String) {
     match fs::read_to_string(file_name) {
         Ok(content) => {
             eval(&content);
+        }
+        Err(e) => eprintln!("Não é possivel avaliar expressão, Erro: {}", e),
+    }
+}
+
+fn eval_file_ast(file_name: String) {
+    match fs::read_to_string(file_name) {
+        Ok(content) => {
+            print_ast(&content);
         }
         Err(e) => eprintln!("Não é possivel avaliar expressão, Erro: {}", e),
     }
@@ -54,6 +59,23 @@ fn eval(input: &String) {
         }
         Ok(None) => {}
         Err(e) => eprintln!("Não é possivel avaliar expressão, Erro: {}", e),
+    }
+}
+
+fn main() {
+    println!("Interpretador LANG");
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 {
+        if args[1].ends_with(".lg") {
+            if args[2] == "a" {
+                eval_file_ast(args[1].clone());
+            }
+            eval_file(args[1].clone())
+        } else {
+            eval(&args[1])
+        }
+    } else {
+        repl()
     }
 }
 

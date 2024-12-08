@@ -18,4 +18,4 @@ cfgrammar = "0.13"
 lrlex = "0.13"
 lrpar = "0.13"
 once_cell = "1.18.0"
-clap = "4.5"
+clap = { version = "4.5", features = ["derive"] }
