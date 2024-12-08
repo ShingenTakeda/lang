@@ -11,6 +11,7 @@ pub mod ast;
 pub mod bytecode;
 pub mod err;
 pub mod instruction;
+pub mod parser;
 pub mod scope;
 
 use ast::AstNode;

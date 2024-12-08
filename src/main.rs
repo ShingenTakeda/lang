@@ -1,8 +1,18 @@
-use lang::{err::InterpError, instruction::EvalResult, scope::Scope, LANG};
+use lang::{err::InterpError, instruction::EvalResult, parser::print_ast, scope::Scope, LANG};
 use std::{
-    env, fs,
+    env::{self, args},
+    fs,
     io::{self, stdout, BufRead, Write},
 };
+
+fn eval_ast(file_name: String) {
+    match fs::read_to_string(file_name) {
+        Ok(content) => {
+            print_ast(&content);
+        }
+        _ => println!("Unable to evalute expression"),
+    }
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -11,6 +21,11 @@ fn main() {
     if args.len() > 1 {
         let result;
         if args[1].ends_with(".lg") {
+            if args.len() > 2 {
+                if args[2] == "ast" {
+                    eval_ast(args[1].clone());
+                }
+            }
             result = run_from_file(&args[1], lang, scope.clone())
         } else {
             result = eval_statement(&args[1], lang, scope.clone());
@@ -42,7 +57,7 @@ pub fn run_from_file(
 fn repl(lang: &mut LANG, scope: Scope) {
     let stdin = io::stdin();
     loop {
-        print!("👉 ");
+        print!(">> ");
         stdout().flush().ok();
         match stdin.lock().lines().next() {
             Some(Ok(ref l)) => {
